@@ -11,5 +11,5 @@ export const sequelize = new Sequelize({
 	database: ENVS_DB.DB_NAME,
 	models: [UserModel],
 	timezone: "-05:00",
-	logging: ENVS_APP.IS_PRODUCTION ? console.log : true,
+	logging: !ENVS_APP.IS_PRODUCTION,
 });

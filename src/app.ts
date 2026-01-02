@@ -1,8 +1,14 @@
 import express, { Application } from "express";
-import HelloRoute from "./infrastructure/http/routes/v1/hello.route";
+import helmet from "helmet";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+import swaggerUi from "swagger-ui-express";
 import UserRoute from "./infrastructure/http/routes/v1/user.route";
 import { sequelize } from "./config/database";
 import { errorHandler } from "./infrastructure/http/middlewares/error.middleware";
+import logger from "./utils/logger";
+import { swaggerSpec } from "./config/swagger.config";
+import v1Routes from "./infrastructure/http/routes/v1";
 
 export default class App {
 	public app: Application;
@@ -15,18 +21,35 @@ export default class App {
 		this.initializeMiddlewares();
 		this.initializeRoutes();
 		this.initializeDatabase();
-		this.initialzeSyncDatabase();
+		this.initializeSyncDatabase();
 		this.initializeErrorHandling();
 	}
 
 	private initializeMiddlewares(): void {
+		this.app.use(helmet());
+		this.app.use(
+			cors({
+				origin: process.env.CORS_ORIGIN || "*",
+				credentials: true,
+			})
+		);
+
+		const limiter = rateLimit({
+			windowMs: 15 * 60 * 1000,
+			max: 100,
+			message: "Too many requests from this IP, please try again later.",
+			standardHeaders: true,
+			legacyHeaders: false,
+		});
+		this.app.use(limiter);
+
 		this.app.use(express.json());
 		this.app.use(express.urlencoded({ extended: true }));
 	}
 
 	private initializeRoutes(): void {
-		this.app.use("/api/v1", HelloRoute);
-		this.app.use("/api/v1/users", UserRoute);
+		this.app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+		this.app.use("/api/v1", v1Routes);
 	}
 	private initializeErrorHandling(): void {
 		this.app.use(errorHandler);
@@ -36,43 +59,40 @@ export default class App {
 		sequelize
 			.authenticate()
 			.then(() => {
-				console.table({
-					"✅ Conexión a la base de datos establecida con éxito": {
-						dbName: sequelize.getDatabaseName(),
-						dialect: sequelize.getDialect(),
-					},
+				logger.info("Database connection established successfully", {
+					dbName: sequelize.getDatabaseName(),
+					dialect: sequelize.getDialect(),
 				});
 			})
 			.catch((error) => {
-				console.table({
-					"❌ Error al conectar a la base de datos": error,
-				});
+				logger.error("Failed to connect to database", { error });
 			});
 	}
-	private initialzeSyncDatabase(): void {
+	private initializeSyncDatabase(): void {
+		if (process.env.NODE_ENV !== "development") {
+			logger.info("Database sync skipped (not development environment)");
+			return;
+		}
+
 		sequelize
 			.sync()
 			.then(() => {
-				console.table({
-					"✅ Base de datos sincronizada con éxito": {
-						dbName: sequelize.getDatabaseName(),
-						dialect: sequelize.getDialect(),
-					},
+				logger.info("Database synchronized successfully", {
+					dbName: sequelize.getDatabaseName(),
+					dialect: sequelize.getDialect(),
 				});
 			})
 			.catch((error) => {
-				console.table({
-					"❌ Error al sincronizar la base de datos": error,
-				});
+				logger.error("Failed to synchronize database", { error });
 			});
 	}
 
 	public listen(): void {
 		this.app.listen(this.port, () => {
-			console.table({
-				"Server is running on": `http://localhost:${this.port}`,
-				Environment: process.env.NODE_ENV,
-				Database: sequelize.getDatabaseName(),
+			logger.info("Server started successfully", {
+				port: this.port,
+				environment: process.env.NODE_ENV,
+				database: sequelize.getDatabaseName(),
 			});
 		});
 	}
