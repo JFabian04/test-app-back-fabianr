@@ -75,7 +75,7 @@ export default class App {
 		}
 
 		sequelize
-			.sync()
+			.sync({ alter: true })
 			.then(() => {
 				logger.info("Database synchronized successfully", {
 					dbName: sequelize.getDatabaseName(),

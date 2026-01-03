@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { UserService } from "../../infrastructure/http/services/user.service";
 import { UserRepository } from "../../domain/ports/UserRepository";
 import { User } from "../../domain/entities/User";
@@ -14,6 +15,8 @@ describe("UserService", () => {
             save: jest.fn(),
             findById: jest.fn(),
             findByEmail: jest.fn(),
+            update: jest.fn(),
+            softDelete: jest.fn(),
         };
 
         userService = new UserService(mockUserRepository);
